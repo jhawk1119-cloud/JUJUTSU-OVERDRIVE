@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUJUTSU : OVERDRIVE</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+        h1 {
+            color: #8a2be2;
+            text-shadow: 0 0 10px #ff00ff;
+            margin-bottom: 5px;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 450px;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            border: 4px solid #4e4e50;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+        }
+        canvas {
+            display: block;
+            background: transparent;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .ui-box {
+            background: rgba(0,0,0,0.7);
+            padding: 8px;
+            border: 2px solid #8a2be2;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #controls {
+            margin-top: 15px;
+            width: 800px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .btn {
+            background-color: #222;
+            color: #fff;
+            border: 2px solid #8a2be2;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            flex: 1;
+            text-align: center;
+            transition: 0.2s;
+        }
+        .btn:hover {
+            background-color: #8a2be2;
+            color: #fff;
+            box-shadow: 0 0 10px #8a2be2;
+        }
+        .btn:disabled {
+            border-color: #444;
+            color: #555;
+            cursor: not-allowed;
+            background-color: #111;
+            box-shadow: none;
+        }
+        /* Pause Menu Modal */
+        #pause-menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            background: rgba(15, 15, 15, 0.95);
+            border: 4px double #8a2be2;
+            padding: 20px;
+            text-align: center;
+            z-index: 10;
+        }
+        #pause-menu h2 {
+            color: #ff00ff;
+            margin-top: 0;
+        }
+        .option-group {
+            margin: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        select {
+            background: #222;
+            color: white;
+            border: 2px solid #8a2be2;
+            padding: 5px;
+            font-family: inherit;
+        }
+        #quest-alert {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(138, 43, 226, 0.8);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            display: none;
+            animation: pulse 1s infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 0.7; } to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>JUJUTSU : OVERDRIVE</h1>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
+        
+        <div id="ui-overlay">
+            <div class="ui-box" id="player-stats">
+                LVL: <span id="lbl-level">1</span>/10,000<br>
+                EXP: <span id="lbl-exp">0</span>/<span id="lbl-maxexp">100</span><br>
+                Yen: ¥<span id="lbl-currency">0</span>
+            </div>
+            <div class="ui-box" id="quest-box" style="max-width: 250px;">
+                <strong>Current Quest:</strong><br>
+                <span id="lbl-quest-desc">Defeat Nobara to start training!</span>
+            </div>
+            <div class="ui-box" id="enemy-stats" style="text-align: right;">
+                Target: <span id="lbl-enemy-name">Nobara</span><br>
+                HP: <span id="lbl-enemy-hp">100</span>/<span id="lbl-enemy-maxhp">100</span><br>
+                Status: <span id="lbl-enemy-status">Normal</span>
+            </div>
+        </div>
+
+        <div id="quest-alert">QUEST COMPLETED!</div>
+
+        <div id="pause-menu">
+            <h2>PAUSED</h2>
+            <div class="option-group">
+                <label for="color-select">Stick Figure Color:</label>
+                <select id="color-select" onchange="changeColor(this.value)">
+                    <option value="#000000">Black</option>
+                    <option value="#ffffff">White</option>
+                    <option value="#ff0000">Red</option>
+                    <option value="#00ff00">Green</option>
+                    <option value="#00ffff">Cyan</option>
+                    <option value="#ff00ff">Magenta</option>
+                </select>
+            </div>
+            <button class="btn" onclick="togglePause()">RESUME</button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="useAttack()">Basic Strike</button>
+        <button class="btn" id="btn-clone" onclick="useClone()" disabled>Clone Manipulation (Lvl 5)</button>
+        <button class="btn" id="btn-purple" onclick="usePurple()" disabled>Hollow Purple (Lvl 5000)</button>
+        <button class="btn" style="border-color: #ff00ff;" onclick="togglePause()">OPTIONS (PAUSE)</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Game State
+    let player = {
+        level: 1,
+        exp: 0,
+        maxExp: 100,
+        currency: 0,
+        color: '#000000',
+        x: 150,
+        y: 280,
+        clones: []
+    };
+
+    // Roster roster of opponents 
+    const roster = [
+        { name: "Nobara", maxHp: 100, baseExp: 50, baseCash: 30, color: "#e91e63", headColor: "#e0a96d" },
+        { name: "Megumi", maxHp: 300, baseExp: 150, baseCash: 100, color: "#0f3460", headColor: "#e0a96d" },
+        { name: "Yuji", maxHp: 800, baseExp: 400, baseCash: 250, color: "#e94560", headColor: "#e0a96d" },
+        { name: "Naoya", maxHp: 2500, baseExp: 1200, baseCash: 800, color: "#bcdaf1", headColor: "#e0a96d" },
+        { name: "Ryu Ishigori", maxHp: 8000, baseExp: 4000, baseCash: 2000, color: "#ff8c00", headColor: "#e0a96d" },
+        { name: "Jogo", maxHp: 25000, baseExp: 15000, baseCash: 7000, color: "#7fff00", headColor: "#d3d3d3" },
+        { name: "Yuta", maxHp: 100000, baseExp: 60000, baseCash: 30000, color: "#ffffff", headColor: "#e0a96d" },
+        { name: "Gojo", maxHp: 500000, baseExp: 300000, baseCash: 150000, color: "#4361ee", headColor: "#ffffff" },
+        { name: "Sukuna", maxHp: 2500000, baseExp: 1500000, baseCash: 1000000, color: "#7209b7", headColor: "#e0a96d" }
+    ];
+
+    let currentEnemyIndex = 0;
+    let enemy = null;
+    let isPaused = false;
+
+    // Visual FX Trackers
+    let particles = [];
+    let basicAttackVfx = 0;
+    let purpleVfx = { active: false, redX: 0, blueX: 0, progress: 0, size: 0 };
+
+    function initEnemy() {
+        let base = roster[currentEnemyIndex];
+        // Scale enemy stats loosely as loop counts increase if the player goes past Sukuna
+        let loops = Math.floor(player.level / 100) + 1; 
+        enemy = {
+            name: base.name,
+            maxHp: base.maxHp * loops,
+            hp: base.maxHp * loops,
+            baseExp: base.baseExp * loops,
+            baseCash: base.baseCash * loops,
+            color: base.color,
+            headColor: base.headColor,
+            x: 600,
+            y: 280,
+            status: "Normal",
+            stunTimer: 0
+        };
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('lbl-level').innerText = player.level.toLocaleString();
+        document.getElementById('lbl-exp').innerText = player.exp.toLocaleString();
+        document.getElementById('lbl-maxexp').innerText = player.maxExp.toLocaleString();
+        document.getElementById('lbl-currency').innerText = player.currency.toLocaleString();
+
+        document.getElementById('lbl-enemy-name').innerText = enemy.name;
+        document.getElementById('lbl-enemy-hp').innerText = Math.max(0, enemy.hp).toLocaleString();
+        document.getElementById('lbl-enemy-maxhp').innerText = enemy.maxHp.toLocaleString();
+        document.getElementById('lbl-enemy-status').innerText = enemy.status;
+
+        // Quest Description logic based on level progression
+        let questDesc = `Defeat ${enemy.name} to grind power!`;
+        if (player.level < 5) questDesc = `Reach Level 5 to unlock Clone Manipulation! Current Target: ${enemy.name}`;
+        else if (player.level < 5000) questDesc = `Reach Level 5,000 to unlock Hollow Purple! Current Target: ${enemy.name}`;
+        else if (player.level >= 10000) questDesc = "MAX LEVEL REACHED. You are the Honored One.";
+        document.getElementById('lbl-quest-desc').innerText = questDesc;
+
+        // Button Locks
+        document.getElementById('btn-clone').disabled = player.level < 5;
+        document.getElementById('btn-purple').disabled = player.level < 5000;
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        document.getElementById('pause-menu').style.display = isPaused ? 'block' : 'none';
+    }
+
+    function changeColor(color) {
+        player.color = color;
+    }
+
+    // Mechanics & Combat
+    function damageEnemy(amount) {
+        if (enemy.hp <= 0) return;
+        enemy.hp -= amount;
+        
+        // Spawn hit numbers text as particles
+        particles.push({
+            x: enemy.x + (Math.random() * 40 - 20),
+            y: enemy.y - 40,
+            text: `-${amount}`,
+            color: '#ff3333',
+            life: 30
+        });
+
+        if (enemy.hp <= 0) {
+            enemy.hp = 0;
+            rewardPlayer();
+        }
+        updateUI();
+    }
+
+    function rewardPlayer() {
+        player.currency += enemy.baseCash;
+        player.exp += enemy.baseExp;
+
+        // Alert text
+        const alert = document.getElementById('quest-alert');
+        alert.innerText = `DEFEATED ${enemy.name}! +¥${enemy.baseCash}`;
+        alert.style.display = 'block';
+        setTimeout(() => alert.style.display = 'none', 1500);
+
+        // Level Up Logic (Max 10,000)
+        while (player.exp >= player.maxExp && player.level < 10000) {
+            player.exp -= player.maxExp;
+            player.level++;
+            player.maxExp = Math.floor(player.maxExp * 1.05) + 50; // Exponential Scaling
+        }
+
+        if (player.level >= 10000) {
+            player.level = 10000;
+            player.exp = 0;
+        }
+
+        // Cycle through roster
+        currentEnemyIndex = (currentEnemyIndex + 1) % roster.length;
+        initEnemy();
+    }
+
+    // Skills
+    function useAttack() {
+        if (isPaused || enemy.hp <= 0) return;
+        basicAttackVfx = 10;
+        let dmg = Math.floor(player.level * 1.5) + 10;
+        damageEnemy(dmg);
+    }
+
+    function useClone() {
+        if (isPaused || player.level < 5 || enemy.hp <= 0) return;
+        
+        // Summon 2 clones that pop into view briefly and attack
+        player.clones = [
+            { x: player.x - 40, y: player.y + 20, timer: 20 },
+            { x: player.x - 20, y: player.y - 20, timer: 20 }
+        ];
+
+        let dmg = (Math.floor(player.level * 1) + 5) * 2; // Damage from two clones
+        damageEnemy(dmg);
+    }
+
+    function usePurple() {
+        if (isPaused || player.level < 5000 || purpleVfx.active || enemy.hp <= 0) return;
+
+        // Trigger cinematic sequence
+        purpleVfx.active = true;
+        purpleVfx.redX = player.x;
+        purpleVfx.blueX = player.x;
+        purpleVfx.progress = 0;
+        purpleVfx.size = 10;
+
+        enemy.status = "STUNNED";
+        enemy.stunTimer = 300; // 5 Seconds at 60 FPS
+    }
+
+    // Render loop functions representing stylized 16-bit sprites via canvases
+    function drawStickFigure(x, y, bodyColor, headColor, isEnemy = false) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = bodyColor;
+        ctx.fillStyle = headColor || bodyColor;
+
+        // Head (16-bit retro blocky look)
+        ctx.fillRect(x - 10, y - 70, 20, 20);
+        ctx.strokeRect(x - 10, y - 70, 20, 20);
+
+        // Eyes for flavor
+        ctx.fillStyle = isEnemy ? '#ff0000' : '#00ffff';
+        if (isEnemy) {
+            ctx.fillRect(x - 6, y - 62, 4, 4);
+        } else {
+            ctx.fillRect(x + 2, y - 62, 4, 4);
+        }
+
+        // Spine
+        ctx.beginPath();
+        ctx.moveTo(x, y - 50);
+        ctx.lineTo(x, y - 10);
+        ctx.stroke();
+
+        // Arms
+        ctx.beginPath();
+        if (isEnemy) {
+            ctx.moveTo(x, y - 40);
+            ctx.lineTo(x - 25, y - 25);
+            ctx.moveTo(x, y - 40);
+            ctx.lineTo(x - 20, y - 45);
+        } else {
+            ctx.moveTo(x, y - 40);
+            ctx.lineTo(x + 25, y - 25);
+            ctx.moveTo(x, y - 40);
+            ctx.lineTo(x + 20, y - 45);
+        }
+        ctx.stroke();
+
+        // Legs
+        ctx.beginPath();
+        ctx.moveTo(x, y - 10);
+        ctx.lineTo(x - 15, y + 25);
+        ctx.moveTo(x, y - 10);
+        ctx.lineTo(x + 15, y + 25);
+        ctx.stroke();
+    }
+
+    function updateAndRender() {
+        // Clear screen
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw 16-bit retro floor grid
+        ctx.strokeStyle = '#222831';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 305);
+        ctx.lineTo(800, 305);
+        ctx.stroke();
+        
+        for (let i = 0; i < 800; i += 40) {
+            ctx.beginPath();
+            ctx.moveTo(i, 305);
+            ctx.lineTo(i - 50, 450);
+            ctx.stroke();
+        }
+
+        if (!isPaused) {
+            // Update Stun status
+            if (enemy.stunTimer > 0) {
+                enemy.stunTimer--;
+                if (enemy.stunTimer <= 0) {
+                    enemy.status = "Normal";
+                    updateUI();
+                }
+            }
+
+            // Animate Hollow Purple Sequence
+            if (purpleVfx.active) {
+                purpleVfx.progress += 2;
+                if (purpleVfx.progress < 50) {
+                    // Red and Blue converge
+                    purpleVfx.redX = player.x + purpleVfx.progress;
+                    purpleVfx.blueX = player.x + 100 - purpleVfx.progress;
+                } else if (purpleVfx.progress < 150) {
+                    // Fused Purple Orb expanding
+                    purpleVfx.size = Math.min(45, purpleVfx.size + 1.5);
+                } else {
+                    // Launch at enemy
+                    let targetX = enemy.x;
+                    purpleVfx.redX += 12; // Reused as purple orb container X coordinates
+                    if (purpleVfx.redX >= targetX) {
+                        // Explosion Hit!
+                        purpleVfx.active = false;
+                        let dmg = Math.floor(player.level * 35);
+                        damageEnemy(dmg);
+                    }
+                }
+            }
+        }
+
+        // Draw Player
+        drawStickFigure(player.x, player.y, player.color, '#e0a96d');
+
+        // Draw Clones if active
+        player.clones.forEach((clone, idx) => {
+            if (clone.timer > 0) {
+                ctx.globalAlpha = 0.5;
+                drawStickFigure(clone.x, clone.y, '#8a2be2', '#8a2be2');
+                ctx.globalAlpha = 1.0;
+                if (!isPaused) clone.timer--;
+            }
+        });
+
+        // Draw Enemy
+        if (enemy) {
+            if (enemy.stunTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0) {
+                // Flash golden yellow if stunned
+                drawStickFigure(enemy.x, enemy.y, '#ffea00', '#ffea00', true);
+            } else {
+                drawStickFigure(enemy.x, enemy.y, enemy.color, enemy.headColor, true);
+            }
+        }
+
+        // Draw Basic Attack Strike Graphic
+        if (basicAttackVfx > 0) {
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(enemy.x - 30, enemy.y - 60);
+            ctx.lineTo(enemy.x + 10, enemy.y - 10);
+            ctx.stroke();
+            if (!isPaused) basicAttackVfx--;
+        }
+
+        // Draw Hollow Purple VFX
+        if (purpleVfx.active) {
+            if (purpleVfx.progress < 50) {
+                // Drawing separate red and blue components
+                ctx.fillStyle = '#ff0055';
+                ctx.beginPath(); ctx.arc(purpleVfx.redX, player.y - 80, 12, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#0055ff';
+                ctx.beginPath(); ctx.arc(purpleVfx.blueX, player.y - 80, 12, 0, Math.PI * 2); ctx.fill();
+            } else if (purpleVfx.progress < 150) {
+                // Charging fused purple orb
+                let grad = ctx.createRadialGradient(player.x + 50, player.y - 80, 2, player.x + 50, player.y - 80, purpleVfx.size);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.3, '#ff00ff');
+                grad.addColorStop(1, '#8a2be2');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(player.x + 50, player.y - 80, purpleVfx.size, 0, Math.PI * 2); ctx.fill();
+            } else {
+                // Fired purple energy projectile traveling across screen
+                let grad = ctx.createRadialGradient(purpleVfx.redX, player.y - 80, 2, purpleVfx.redX, player.y - 80, purpleVfx.size);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.2, '#ff00ff');
+                grad.addColorStop(1, 'rgba(138, 43, 226, 0.1)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(purpleVfx.redX, player.y - 80, purpleVfx.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        // Draw Floating Text Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            ctx.fillStyle = p.color;
+            ctx.font = 'bold 16px "Courier New"';
+            ctx.fillText(p.text, p.x, p.y);
+            if (!isPaused) {
+                p.y -= 1;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        requestAnimationFrame(updateAndRender);
+    }
+
+    // Startup
+    initEnemy();
+    updateAndRender();
+</script>
+</body>
+</html>

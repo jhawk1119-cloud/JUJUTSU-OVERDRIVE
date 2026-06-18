@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUJUTSU : OVERDRIVE</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050508;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+            overflow: hidden;
+        }
+        h1 {
+            color: #6a1b9a;
+            text-shadow: 0 0 15px #d500f9, 0 0 30px #4a148c;
+            margin: 5px 0;
+            letter-spacing: 4px;
+            font-size: 28px;
+        }
+        #game-container {
+            position: relative;
+            width: 900px;
+            height: 500px;
+            background: radial-gradient(circle at center, #140e2d 0%, #070512 100%);
+            border: 4px solid #4a148c;
+            overflow: hidden;
+            box-shadow: 0 0 35px rgba(213, 0, 249, 0.4);
+        }
+        canvas {
+            display: block;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .ui-box {
+            background: rgba(4, 3, 10, 0.9);
+            padding: 12px;
+            border: 2px solid #aa00ff;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            box-shadow: inset 0 0 10px rgba(170, 0, 255, 0.3);
+            min-width: 180px;
+        }
+        .bar-container {
+            width: 100%;
+            background-color: #221133;
+            height: 10px;
+            border: 1px solid #aa00ff;
+            margin-top: 4px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            width: 100%;
+            transition: width 0.1s ease-out;
+        }
+        #player-hp-fill { background-color: #00e5ff; box-shadow: 0 0 8px #00e5ff; }
+        #player-exp-fill { background-color: #e040fb; box-shadow: 0 0 8px #e040fb; }
+        #enemy-hp-fill { background-color: #ff1744; box-shadow: 0 0 8px #ff1744; }
+        
+        #controls {
+            margin-top: 15px;
+            width: 900px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        .btn {
+            background-color: #0f0a21;
+            color: #ea80fc;
+            border: 2px solid #aa00ff;
+            padding: 14px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 11px;
+            text-align: center;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #aa00ff;
+            color: #fff;
+            box-shadow: 0 0 15px #aa00ff;
+            transform: translateY(-2px);
+        }
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        .btn:disabled {
+            border-color: #311b92;
+            color: #5c306d;
+            cursor: not-allowed;
+            background-color: #05030a;
+        }
+        #pause-menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 360px;
+            background: rgba(5, 3, 12, 0.98);
+            border: 4px double #ea80fc;
+            padding: 25px;
+            text-align: center;
+            z-index: 10;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        #pause-menu h2 {
+            color: #d500f9;
+            margin-top: 0;
+            text-shadow: 0 0 10px #d500f9;
+        }
+        .option-group {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        select {
+            background: #160d33;
+            color: white;
+            border: 2px solid #aa00ff;
+            padding: 8px;
+            font-family: inherit;
+            border-radius: 4px;
+        }
+        #alert-banner {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 5, 30, 0.95);
+            border: 2px solid #d500f9;
+            padding: 10px 30px;
+            font-weight: bold;
+            display: none;
+            color: #fff;
+            text-shadow: 0 0 5px #000;
+            box-shadow: 0 0 20px rgba(213,0,213,0.6);
+            border-radius: 4px;
+            z-index: 5;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>JUJUTSU : OVERDRIVE</h1>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        
+        <div id="ui-overlay">
+            <div class="ui-box" id="player-stats">
+                <strong style="color: #00e5ff;">SORCERER STATUS</strong><br>
+                LVL: <span id="lbl-level">1</span>/10,000<br>
+                Yen: ¥<span id="lbl-currency">0</span><br>
+                HP: <span id="lbl-player-hp">500</span>/<span id="lbl-player-maxhp">500</span>
+                <div class="bar-container"><div id="player-hp-fill" class="bar-fill"></div></div>
+                EXP: <span id="lbl-exp">0</span>/<span id="lbl-maxexp">100</span>
+                <div class="bar-container"><div id="player-exp-fill" class="bar-fill"></div></div>
+            </div>
+            <div class="ui-box" id="quest-box" style="width: 300px; text-align: center; border-color: #d500f9;">
+                <strong style="color: #d500f9; letter-spacing: 1px;">CURRENT MISSION</strong><br>
+                <span id="lbl-quest-desc">Loading mission briefings...</span>
+            </div>
+            <div class="ui-box" id="enemy-stats" style="text-align: right;">
+                <strong style="color: #ff1744;">TARGET CURSE</strong><br>
+                Name: <span id="lbl-enemy-name">-</span><br>
+                Status: <span id="lbl-enemy-status" style="font-weight: bold;">Normal</span><br>
+                HP: <span id="lbl-enemy-hp">0</span>/<span id="lbl-enemy-maxhp">0</span>
+                <div class="bar-container"><div id="enemy-hp-fill" class="bar-fill"></div></div>
+            </div>
+        </div>
+
+        <div id="alert-banner">TXT</div>
+
+        <div id="pause-menu">
+            <h2>PAUSE INTERFACE</h2>
+            <div class="option-group">
+                <label for="color-select">Sorcerer Uniform Accent:</label>
+                <select id="color-select" onchange="changeColor(this.value)">
+                    <option value="#151226">Jujutsu High Dark Blue</option>
+                    <option value="#311b92">Deep Void Purple</option>
+                    <option value="#004d40">Cursed Green</option>
+                    <option value="#b71c1c">Blood Red</option>
+                    <option value="#ffffff">Pure White Uniform</option>
+                </select>
+            </div>
+            <button class="btn" style="width: 100%;" onclick="togglePause()">RESUME SIMULATION</button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="useAttack()">Basic Strike<br><span style="font-size:9px;color:#888;">No cost</span></button>
+        <button class="btn" id="btn-clone" onclick="useClone()" disabled>Clone Manipulation<br><span style="font-size:9px;color:#bbb;">Lvl 5 Required</span></button>
+        <button class="btn" id="btn-skill1" onclick="useSkill1()" disabled>Divergent Fist<br><span style="font-size:9px;color:#bbb;">Lvl 50 Required</span></button>
+        <button class="btn" id="btn-skill2" onclick="useSkill2()" disabled>Black Flash<br><span style="font-size:9px;color:#bbb;">Lvl 200 Required</span></button>
+        <button class="btn" id="btn-skill3" onclick="useSkill3()" disabled>Cleave & Dismantle<br><span style="font-size:9px;color:#bbb;">Lvl 1000 Required</span></button>
+        <button class="btn" id="btn-skill4" onclick="useSkill4()" disabled>Granité Blast<br><span style="font-size:9px;color:#bbb;">Lvl 3000 Required</span></button>
+        <button class="btn" id="btn-purple" onclick="usePurple()" disabled>Hollow Purple<br><span style="font-size:9px;color:#bbb;">Lvl 5000 Required</span></button>
+        <button class="btn" style="border-color: #d500f9; color:#d500f9;" onclick="togglePause()">OPTIONS (PAUSE)</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    // Game Core State
+    let player = {
+        level: 1,
+        exp: 0,
+        maxExp: 100,
+        currency: 0,
+        color: '#151226',
+        x: 220,
+        y: 300,
+        hp: 500,
+        maxHp: 500,
+        clones: [],
+        state: "idle",
+        stateTimer: 0,
+        isDefeated: false,
+        respawnTimer: 0
+    };
+
+    // Complete Roster Profiles
+    const roster = [
+        { id: "nobara", name: "Nobara Kugisaki", maxHp: 150, baseExp: 50, baseCash: 40, attackType: "nails", attackDmg: 15, attackRate: 140 },
+        { id: "megumi", name: "Megumi Fushiguro", maxHp: 450, baseExp: 160, baseCash: 120, attackType: "divine_dog", attackDmg: 35, attackRate: 130 },
+        { id: "yuji", name: "Yuji Itadori", maxHp: 1200, baseExp: 450, baseCash: 350, attackType: "divergent_punch", attackDmg: 80, attackRate: 110 },
+        { id: "naoya", name: "Naoya Zen'in", maxHp: 4000, baseExp: 1500, baseCash: 1000, attackType: "projection", attackDmg: 220, attackRate: 70 },
+        { id: "ryu", name: "Ryu Ishigori", maxHp: 15000, baseExp: 4500, baseCash: 2500, attackType: "head_blast", attackDmg: 650, attackRate: 160 },
+        { id: "jogo", name: "Jogo", maxHp: 40000, baseExp: 16000, baseCash: 7000, attackType: "ember_insect", attackDmg: 1800, attackRate: 120 },
+        { id: "yuta", name: "Yuta Okkotsu", maxHp: 180000, baseExp: 70000, baseCash: 30000, attackType: "rika_strike", attackDmg: 6000, attackRate: 100 },
+        { id: "gojo", name: "Satoru Gojo", maxHp: 1000000, baseExp: 400000, baseCash: 150000, attackType: "blue_lapse", attackDmg: 25000, attackRate: 90 },
+        { id: "sukuna", name: "Ryomen Sukuna", maxHp: 5000000, baseExp: 2000000, baseCash: 800000, attackType: "malevolent_shrine", attackDmg: 99999, attackRate: 80 }
+    ];
+
+    let currentEnemyIndex = 0;
+    let enemy = null;
+    let isPaused = false;
+
+    // Visual System Framework Variables
+    let activeVfx = [];
+    let particles = [];
+    let cameraShake = { x: 0, y: 0, duration: 0, intensity: 0 };
+    let purpleVfx = { active: false, redX: 0, blueX: 0, progress: 0, size: 0 };
+
+    function initEnemy() {
+        let base = roster[currentEnemyIndex];
+        let scalingLoop = Math.floor(player.level / 150) + 1;
+        enemy = {
+            id: base.id,
+            name: base.name,
+            maxHp: base.maxHp * scalingLoop,
+            hp: base.maxHp * scalingLoop,
+            baseExp: base.baseExp * scalingLoop,
+            baseCash: base.baseCash * scalingLoop,
+            attackType: base.attackType,
+            attackDmg: base.attackDmg * scalingLoop,
+            attackRate: base.attackRate,
+            attackTimer: 0,
+            x: 650,
+            y: 300,
+            status: "Normal",
+            stunTimer: 0,
+            state: "idle",
+            stateTimer: 0
+        };
+        updateUI();
+    }
+
+    function updateUI() {
+        // Player stats parsing
+        document.getElementById('lbl-level').innerText = player.level.toLocaleString();
+        document.getElementById('lbl-currency').innerText = player.currency.toLocaleString();
+        document.getElementById('lbl-exp').innerText = player.exp.toLocaleString();
+        document.getElementById('lbl-maxexp').innerText = player.maxExp.toLocaleString();
+        document.getElementById('lbl-player-hp').innerText = Math.max(0, player.hp).toLocaleString();
+        document.getElementById('lbl-player-maxhp').innerText = player.maxHp.toLocaleString();
+        
+        let pHpPct = (player.hp / player.maxHp) * 100;
+        document.getElementById('player-hp-fill').style.width = `${Math.max(0, pHpPct)}%`;
+        let pExpPct = (player.exp / player.maxExp) * 100;
+        document.getElementById('player-exp-fill').style.width = `${pExpPct}%`;
+
+        // Enemy stats parsing
+        document.getElementById('lbl-enemy-name').innerText = enemy.name;
+        document.getElementById('lbl-enemy-status').innerText = enemy.status;
+        document.getElementById('lbl-enemy-hp').innerText = Math.max(0, enemy.hp).toLocaleString();
+        document.getElementById('lbl-enemy-maxhp').innerText = enemy.maxHp.toLocaleString();
+        
+        let eHpPct = (enemy.hp / enemy.maxHp) * 100;
+        document.getElementById('enemy-hp-fill').style.width = `${Math.max(0, eHpPct)}%`;
+
+        // Quest strings
+        let qText = `Exorcise ${enemy.name} immediately!`;
+        if (player.level < 5) qText = `Awaken your innate potential. Reach Level 5 for [Clone Manipulation].`;
+        else if (player.level < 50) qText = `Condition body refinement. Reach Level 50 for [Divergent Fist].`;
+        else if (player.level < 200) qText = `Achieve the spark of core energy. Reach Level 200 for [Black Flash].`;
+        else if (player.level < 1000) qText = `Harness destructive edge slicing. Reach Level 1000 for [Cleave & Dismantle].`;
+        else if (player.level < 3000) qText = `Condense cursed capacity. Reach Level 3000 for [Granité Blast].`;
+        else if (player.level < 5000) qText = `Merge imaginary mass. Reach Level 5000 for imaginary technique [Hollow Purple]!`;
+        else if (player.level >= 10000) qText = "THE HONORED ONE. Absolute power achieved.";
+        document.getElementById('lbl-quest-desc').innerText = qText;
+
+        // Interactive dynamic lock configurations
+        document.getElementById('btn-clone').disabled = player.level < 5 || player.isDefeated;
+        setupSkillBtn('btn-skill1', 50, "Divergent Fist");
+        setupSkillBtn('btn-skill2', 200, "Black Flash");
+        setupSkillBtn('btn-skill3', 1000, "Cleave & Dismantle");
+        setupSkillBtn('btn-skill4', 3000, "Granité Blast");
+        document.getElementById('btn-purple').disabled = player.level < 5000 || player.isDefeated;
+    }
+
+    function setupSkillBtn(id, req, name) {
+        let btn = document.getElementById(id);
+        if (player.level >= req && !player.isDefeated) {
+            btn.disabled = false;
+        } else {
+            btn.disabled = true;
+        }
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        document.getElementById('pause-menu').style.display = isPaused ? 'block' : 'none';
+    }
+
+    function changeColor(color) {
+        player.color = color;
+    }
+
+    function triggerAlert(text) {
+        let banner = document.getElementById('alert-banner');
+        banner.innerText = text;
+        banner.style.display = 'block';
+        setTimeout(() => banner.style.display = 'none', 2000);
+    }
+
+    function startCameraShake(dur, intensity) {
+        cameraShake.duration = dur;
+        cameraShake.intensity = intensity;
+    }
+
+    // Engine Combat Handling Mechanics
+    function playerDealDamage(multiplier, type) {
+        if (enemy.hp <= 0 || player.isDefeated || isPaused) return;
+
+        // Set action visual animation frames states
+        player.state = "attack";
+        player.stateTimer = 15;
+
+        let baseDamage = Math.floor(player.level * 2.2) + 15;
+        let finalDamage = Math.floor(baseDamage * multiplier);
+        
+        enemy.hp -= finalDamage;
+
+        // Unique Combat VFX definitions added directly into stack arrays
+        createVfxStrike(enemy.x, enemy.y - 45, type);
+
+        let textColor = "#ffffff";
+        let textSize = 16;
+        if (type === "black_flash") { textColor = "#ff0055"; textSize = 26; startCameraShake(20, 10); }
+        else if (type === "granite") { textColor = "#ff7643"; textSize = 22; startCameraShake(15, 6); }
+        else if (type === "cleave") { textColor = "#cfd8dc"; textSize = 18; }
+
+        particles.push({
+            x: enemy.x + (Math.random() * 40 - 20),
+            y: enemy.y - 70,
+            text: `-${finalDamage}`,
+            color: textColor,
+            size: textSize,
+            life: 40
+        });
+
+        if (enemy.hp <= 0) {
+            enemy.hp = 0;
+            handleEnemyDefeat();
+        }
+        updateUI();
+    }
+
+    function enemyExecuteAttack() {
+        if (player.isDefeated || enemy.hp <= 0 || isPaused || enemy.status === "STUNNED") return;
+
+        enemy.state = "attack";
+        enemy.stateTimer = 18;
+
+        let finalDmg = Math.floor(enemy.attackDmg * (0.85 + Math.random() * 0.3));
+        player.hp -= finalDmg;
+
+        createVfxStrike(player.x, player.y - 45, enemy.attackType);
+        startCameraShake(10, 4);
+
+        particles.push({
+            x: player.x + (Math.random() * 40 - 20),
+            y: player.y - 70,
+            text: `-${finalDmg}`,
+            color: "#ff1744",
+            size: 18,
+            life: 45
+        });
+
+        if (player.hp <= 0) {
+            player.hp = 0;
+            player.isDefeated = true;
+            player.respawnTimer = 180; // 3 seconds penalty loop frame count
+            triggerAlert("YOU WERE EXORCISED! RECOVERING CURSED ENERGY...");
+        }
+        updateUI();
+    }
+
+    function handleEnemyDefeat() {
+        player.currency += enemy.baseCash;
+        player.exp += enemy.baseExp;
+
+        triggerAlert(`MISSION ACCOMPLISHED! +¥${enemy.baseCash} | EXP +${enemy.baseExp}`);
+
+        // Handle scaling algorithms directly up to level 10,000 threshold capping
+        while (player.exp >= player.maxExp && player.level < 10000) {
+            player.exp -= player.maxExp;
+            player.level++;
+            player.maxExp = Math.floor(player.maxExp * 1.07) + 65;
+            player.maxHp = Math.floor(player.maxHp * 1.05) + 30;
+        }
+        if (player.level > 10000) player.level = 10000;
+        player.hp = player.maxHp; // Heal back fully upon clearing a target combatant
+
+        currentEnemyIndex = (currentEnemyIndex + 1) % roster.length;
+        initEnemy();
+    }
+
+    // Input Control Handlers
+    function useAttack() { playerDealDamage(1, "strike"); }
+    
+    function useClone() {
+        if (player.level < 5) return;
+        player.clones = [
+            { x: player.x - 45, y: player.y + 20, life: 20 },
+            { x: player.x - 30, y: player.y - 25, life: 20 }
+        ];
+        playerDealDamage(2.5, "clone");
+    }
+
+    function useSkill1() { if(player.level >= 50) playerDealDamage(5, "divergent"); }
+    function useSkill2() { if(player.level >= 200) playerDealDamage(14, "black_flash"); }
+    function useSkill3() { if(player.level >= 1000) playerDealDamage(35, "cleave"); }
+    function useSkill4() { if(player.level >= 3000) playerDealDamage(100, "granite"); }
+
+    function usePurple() {
+        if (player.level < 5000 || purpleVfx.active || enemy.hp <= 0 || player.isDefeated || isPaused) return;
+        purpleVfx.active = true;
+        purpleVfx.redX = player.x;
+        purpleVfx.blueX = player.x;
+        purpleVfx.progress = 0;
+        purpleVfx.size = 10;
+        enemy.status = "STUNNED";
+        enemy.stunTimer = 300;
+        updateUI();
+    }
+
+    // Visual Core Generation Generators
+    function createVfxStrike(x, y, type) {
+        activeVfx.push({ x: x, y: y, type: type, life: 20, maxLife: 20 });
+    }
+
+    // HIGH-DETAIL PROCEDURAL RENDER SYSTEM
+    // Using advanced multi-layered retro block segments instead of basic geometries
+    function drawDetailedSprite(x, y, id, customUniform, lookingRight, entityState) {
+        ctx.save();
+        
+        // Flip matrix calculations if facing left side targeting
+        if (!lookingRight) {
+            ctx.translate(x, 0);
+            ctx.scale(-1, 1);
+            ctx.translate(-x, 0);
+        }
+
+        // Action offset offsets matching physical state shifts
+        let yOff = 0;
+        let xOff = 0;
+        if (entityState === "attack") {
+            xOff = 15;
+        }
+
+        switch(id) {
+            case "player":
+                // Layered uniform coat and inner shirts
+                drawPixelBlock(x-14+xOff, y-50+yOff, 28, 55, customUniform); 
+                drawPixelBlock(x-10+xOff, y-48+yOff, 20, 12, "#111115"); // Collar outline depth
+                drawPixelBlock(x-12+xOff, y+5, 10, 35, "#0b0914"); // Pants Left
+                drawPixelBlock(x+2+xOff, y+5, 10, 35, "#0b0914"); // Pants Right
+                drawPixelBlock(x-14+xOff, y+38, 12, 8, "#222225"); // Footwear accents
+                drawPixelBlock(x+2+xOff, y+38, 12, 8, "#222225");
+                // Upper Head elements
+                drawPixelBlock(x-10+xOff, y-72+yOff, 20, 22, "#ffcca3"); // Skin Face
+                drawPixelBlock(x-12+xOff, y-78+yOff, 24, 10, "#4a3728"); // Shaded hair foundation
+                drawPixelBlock(x-8+xOff, y-82+yOff, 16, 6, "#6d523f"); // Spiky top tips
+                // Glowing eyes matrix
+                drawPixelBlock(x+4+xOff, y-66+yOff, 4, 4, "#00e5ff");
+                break;
+
+            case "nobara":
+                drawPixelBlock(x-12-xOff, y-48+yOff, 24, 52, "#202538"); // Uniform skirt outline
+                drawPixelBlock(x-14-xOff, y-35+yOff, 28, 4, "#5d4037"); // Brown utility weapon belt
+                drawPixelBlock(x-8-xOff, y+4, 7, 36, "#111115");
+                drawPixelBlock(x+1-xOff, y+4, 7, 36, "#111115");
+                drawPixelBlock(x-10-xOff, y-70+yOff, 20, 22, "#ffebd3"); // Face base
+                drawPixelBlock(x-12-xOff, y-76+yOff, 24, 12, "#b05d23"); // Auburn hair layers
+                drawPixelBlock(x-13-xOff, y-68+yOff, 4, 14, "#e67e22"); // Side bangs
+                drawPixelBlock(x-6-xOff, y-63+yOff, 4, 4, "#795548"); // Eye
+                break;
+
+            case "megumi":
+                drawPixelBlock(x-14-xOff, y-52+yOff, 28, 56, "#121824"); // Navy coat
+                drawPixelBlock(x-12-xOff, y-50+yOff, 24, 8, "#ffd54f"); // Golden uniform button buttons
+                drawPixelBlock(x-10-xOff, y+4, 9, 36, "#121824");
+                drawPixelBlock(x+1-xOff, y+4, 9, 36, "#121824");
+                drawPixelBlock(x-10-xOff, y-72+yOff, 20, 20, "#fff3e0"); // Face
+                // Fragmented spiky shadow hair mapping
+                drawPixelBlock(x-15-xOff, y-82+yOff, 30, 12, "#0a0d14");
+                drawPixelBlock(x-13-xOff, y-74+yOff, 4, 10, "#0a0d14");
+                drawPixelBlock(x+9-xOff, y-74+yOff, 4, 10, "#0a0d14");
+                drawPixelBlock(x-5-xOff, y-86+yOff, 6, 6, "#1c2331");
+                drawPixelBlock(x-6-xOff, y-64+yOff, 4, 4, "#1565c0"); // Deep blue eyes
+                break;
+
+            case "yuji":
+                drawPixelBlock(x-15-xOff, y-52+yOff, 30, 56, "#1c2035"); // Main uniform torso jacket
+                drawPixelBlock(x-10-xOff, y-48+yOff, 20, 10, "#d32f2f"); // Prominent bright red neck scarf cowl
+                drawPixelBlock(x-11-xOff, y+4, 9, 36, "#1c2035");
+                drawPixelBlock(x+2-xOff, y+4, 9, 36, "#1c2035");
+                drawPixelBlock(x-10-xOff, y-72+yOff, 20, 20, "#ffcca3");
+                drawPixelBlock(x-12-xOff, y-80+yOff, 24, 10, "#ea9ab2"); // Light pink undercut hair styling
+                drawPixelBlock(x-10-xOff, y-74+yOff, 20, 4, "#3e2723"); // Black transition hair shadow
+                drawPixelBlock(x-6-xOff, y-64+yOff, 4, 4, "#4e342e");
+                break;
+
+            case "naoya":
+                drawPixelBlock(x-16-xOff, y-46+yOff, 32, 50, "#eceff1"); // Light traditional Zen'in yukata vestments
+                drawPixelBlock(x-12-xOff, y-44+yOff, 24, 46, "#b0bec5"); // Shaded fold folds
+                drawPixelBlock(x-11-xOff, y+4, 9, 36, "#263238");
+                drawPixelBlock(x+2-xOff, y+4, 9, 36, "#263238");
+                drawPixelBlock(x-10-xOff, y-68+yOff, 20, 22, "#ffee55"); // Bleached blond outer ring hair
+                drawPixelBlock(x-8-xOff, y-66+yOff, 16, 20, "#ffddb0"); // Face slice
+                drawPixelBlock(x-4-xOff, y-74+yOff, 10, 8, "#111115"); // Black roots detail tinting
+                break;
+
+            case "ryu":
+                drawPixelBlock(x-16-xOff, y-54+yOff, 32, 58, "#212121"); // Oversized structural coat frame
+                drawPixelBlock(x-6-xOff, y+4, 11, 36, "#212121");
+                drawPixelBlock(x+6-xOff, y+4, 11, 36, "#212121");
+                drawPixelBlock(x-10-xOff, y-74+yOff, 20, 20, "#ffd59a");
+                // Mammoth physical hair stack extension
+                drawPixelBlock(x-6-xOff, y-96+yOff, 14, 24, "#050505"); // Pompadour projection structure
+                drawPixelBlock(x-4-xOff, y-92+yOff, 10, 20, "#37474f"); // Metallic sheen highlight line
+                break;
+
+            case "jogo":
+                drawPixelBlock(x-18-xOff, y-40+yOff, 36, 44, "#90a4ae"); // Dotted cape-cloak asset
+                drawPixelBlock(x-14-xOff, y-34+yOff, 28, 38, "#e65100"); // Inner igneous magma lines patterning
+                drawPixelBlock(x-12-xOff, y+4, 24, 30, "#37474f");
+                // Cyclops head features setup
+                drawPixelBlock(x-12-xOff, y-62+yOff, 24, 22, "#cfd8dc"); // Ash-tint head mass
+                drawPixelBlock(x-6-xOff, y-74+yOff, 12, 12, "#4e342e"); // Volcano core base ring
+                drawPixelBlock(x-3-xOff, y-78+yOff, 6, 6, "#ff3d00"); // Glowing magma tip emission
+                drawPixelBlock(x-3-xOff, y-56+yOff, 6, 6, "#ffeb3b"); // Massive centered single eye asset
+                break;
+
+            case "yuta":
+                drawPixelBlock(x-14-xOff, y-52+yOff, 28, 56, "#ffffff"); // Clean high-white high jacket setup
+                drawPixelBlock(x-4-xOff, y-40+yOff, 8, 44, "#212121"); // Vertical structural dark straps lines
+                drawPixelBlock(x-11-xOff, y+4, 9, 36, "#1a1a24");
+                drawPixelBlock(x+2-xOff, y+4, 9, 36, "#1a1a24");
+                drawPixelBlock(x-10-xOff, y-72+yOff, 20, 20, "#fff3e0");
+                drawPixelBlock(x-12-xOff, y-82+yOff, 24, 12, "#111115"); // Messy dark unkempt hair blocks
+                drawPixelBlock(x-13-xOff, y-74+yOff, 4, 12, "#111115");
+                drawPixelBlock(x-5-xOff, y-60+yOff, 10, 4, "#78909c"); // Under-eye heavy fatigue ring pixels
+                break;
+
+            case "gojo":
+                drawPixelBlock(x-14-xOff, y-56+yOff, 28, 60, "#19162b"); // Fitted long dark coat silhouette
+                drawPixelBlock(x-11-xOff, y+4, 9, 38, "#19162b");
+                drawPixelBlock(x+2-xOff, y+4, 9, 38, "#19162b");
+                drawPixelBlock(x-10-xOff, y-76+yOff, 20, 20, "#fff176"); // Base head layer
+                drawPixelBlock(x-10-xOff, y-76+yOff, 20, 20, "#ffebd5"); // Skin tone face mask overlay
+                drawPixelBlock(x-13-xOff, y-90+yOff, 26, 16, "#ffffff"); // Towering spiked clean white hair mass
+                drawPixelBlock(x-11-xOff, y-84+yOff, 4, 6, "#ffffff");
+                drawPixelBlock(x+7-xOff, y-84+yOff, 4, 6, "#ffffff");
+                drawPixelBlock(x-10-xOff, y-68+yOff, 20, 6, "#070709"); // High detail black horizontal wrap blindfold
+                break;
+
+            case "sukuna":
+                drawPixelBlock(x-16-xOff, y-50+yOff, 32, 54, "#f3e5f5"); // Open traditional flow kimono wrap
+                drawPixelBlock(x-6-xOff, y-15+yOff, 12, 14, "#c62828"); // Maroon deep sash wrap belt tie
+                drawPixelBlock(x-11-xOff, y+4, 9, 36, "#ffffff");
+                drawPixelBlock(x+2-xOff, y+4, 9, 36, "#ffffff");
+                drawPixelBlock(x-10-xOff, y-70+yOff, 20, 20, "#ffd59a");
+                drawPixelBlock(x-12-xOff, y-78+yOff, 24, 10, "#f48fb1"); // Pink reverse spikes top hair styling
+                drawPixelBlock(x-11-xOff, y-72+yOff, 22, 3, "#4a148c"); // Hair line gradient trim
+                // Forehead multi tattoo arrays line plotting
+                ctx.fillStyle = "#311b92";
+                ctx.fillRect(x-5-xOff, y-66+yOff, 10, 2);
+                ctx.fillRect(x-7-xOff, y-60+yOff, 3, 2);
+                ctx.fillRect(x+4-xOff, y-60+yOff, 3, 2);
+                break;
+        }
+
+        ctx.restore();
+    }
+
+    function drawPixelBlock(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
+        // Embedded detailed modular pixel mesh border styling overlay
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
+    }
+
+    // Engine Frame Core Loop Execution Function
+    function renderEngineCore() {
+        // Handle camera shake positional shifting values
+        let cx = 0; let cy = 0;
+        if (cameraShake.duration > 0) {
+            cx = (Math.random() * 2 - 1) * cameraShake.intensity;
+            cy = (Math.random() * 2 - 1) * cameraShake.intensity;
+            if (!isPaused) cameraShake.duration--;
+        }
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Clear layout canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Render Background Grid World environment details
+        ctx.fillStyle = "#0d091a";
+        ctx.fillRect(0, 340, 900, 160);
+        ctx.strokeStyle = "#281b40";
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, 340); ctx.lineTo(900, 340); ctx.stroke();
+
+        for (let i = -100; i < 1100; i += 75) {
+            ctx.beginPath();
+            ctx.moveTo(i, 340);
+            ctx.lineTo(i - 150, 500);
+            ctx.stroke();
+        }
+
+        if (!isPaused) {
+            // Player recovery management loops
+            if (player.isDefeated) {
+                player.respawnTimer--;
+                if (player.respawnTimer <= 0) {
+                    player.isDefeated = false;
+                    player.hp = Math.floor(player.maxHp * 0.4); // Revive with 40% health
+                    updateUI();
+                }
+            }
+
+            // Passive processing timers
+            if (player.stateTimer > 0) { player.stateTimer--; if (player.stateTimer <= 0) player.state = "idle"; }
+            if (enemy.stateTimer > 0) { enemy.stateTimer--; if (enemy.stateTimer <= 0) enemy.state = "idle"; }
+
+            if (enemy.stunTimer > 0) {
+                enemy.stunTimer--;
+                if (enemy.stunTimer <= 0) {
+                    enemy.status = "Normal";
+                    updateUI();
+                }
+            } else {
+                // Enemy automated attacking counter logic loop
+                enemy.attackTimer++;
+                if (enemy.attackTimer >= enemy.attackRate) {
+                    enemy.attackTimer = 0;
+                    enemyExecuteAttack();
+                }
+            }
+
+            // Cinematic Complex Hollow Purple Progression Calculations
+            if (purpleVfx.active) {
+                purpleVfx.progress += 3;
+                if (purpleVfx.progress < 70) {
+                    purpleVfx.redX = player.x + purpleVfx.progress;
+                    purpleVfx.blueX = player.x + 140 - purpleVfx.progress;
+                } else if (purpleVfx.progress < 180) {
+                    purpleVfx.size = Math.min(65, purpleVfx.size + 1.5);
+                } else {
+                    purpleVfx.redX += 16;
+                    if (purpleVfx.redX >= enemy.x) {
+                        purpleVfx.active = false;
+                        playerDealDamage(500, "purple_impact");
+                    }
+                }
+            }
+        }
+
+        // Render Active Characters
+        if (!player.isDefeated) {
+            drawDetailedSprite(player.x, player.y, "player", player.color, true, player.state);
+        }
+
+        // Process active duplicate clones visuals
+        player.clones.forEach((clone) => {
+            if (clone.life > 0) {
+                ctx.globalAlpha = 0.4;
+                drawDetailedSprite(clone.x, clone.y, "player", "#aa00ff", true, "attack");
+                ctx.globalAlpha = 1.0;
+                if (!isPaused) clone.life--;
+            }
+        });
+
+        if (enemy && enemy.hp > 0) {
+            if (enemy.stunTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0) {
+                ctx.globalAlpha = 0.5;
+                drawDetailedSprite(enemy.x, enemy.y, enemy.id, null, false, enemy.state);
+                ctx.globalAlpha = 1.0;
+            } else {
+                drawDetailedSprite(enemy.x, enemy.y, enemy.id, null, false, enemy.state);
+            }
+        }
+
+        // Process Rendering Technique Graphic Visual Layers Stack Arrays
+        activeVfx.forEach((vfx, index) => {
+            ctx.save();
+            if (vfx.type === "strike") {
+                ctx.strokeStyle = "#00e5ff"; ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.moveTo(vfx.x - 30, vfx.y - 30); ctx.lineTo(vfx.x + 30, vfx.y + 30); ctx.stroke();
+            }
+            else if (vfx.type === "clone") {
+                ctx.strokeStyle = "#e040fb"; ctx.lineWidth = 5;
+                ctx.strokeRect(vfx.x - 40, vfx.y - 40, 80, 80);
+            }
+            else if (vfx.type === "divergent") {
+                ctx.fillStyle = "rgba(0, 145, 234, 0.4)";
+                ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 50, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "rgba(255, 23, 68, 0.7)";
+                ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 25, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "black_flash") {
+                ctx.fillStyle = "#000000"; ctx.fillRect(vfx.x - 60, vfx.y - 60, 120, 120);
+                ctx.strokeStyle = "#ff0055"; ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(vfx.x - 40, vfx.y - 50); ctx.lineTo(vfx.x + 20, vfx.y + 40);
+                ctx.lineTo(vfx.x - 10, vfx.y - 10); ctx.lineTo(vfx.x + 50, vfx.y + 20);
+                ctx.stroke();
+            }
+            else if (vfx.type === "cleave") {
+                ctx.strokeStyle = "#eceff1"; ctx.lineWidth = 4;
+                for (let k = 0; k < 5; k++) {
+                    ctx.beginPath(); ctx.moveTo(vfx.x - 50, vfx.y - 40 + (k*20)); ctx.lineTo(vfx.x + 50, vfx.y - 20 + (k*20)); ctx.stroke();
+                }
+            }
+            else if (vfx.type === "granite") {
+                let beamGrad = ctx.createLinearGradient(player.x, vfx.y, vfx.x, vfx.y);
+                beamGrad.addColorStop(0, "#ff3d00"); beamGrad.addColorStop(0.5, "#ffea00"); beamGrad.addColorStop(1, "#ffffff");
+                ctx.fillStyle = beamGrad; ctx.fillRect(player.x + 20, vfx.y - 25, vfx.x - player.x, 50);
+            }
+            else if (vfx.type === "purple_impact") {
+                ctx.fillStyle = "rgba(7a, 20, 140, 0.85)";
+                ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 110, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 40, 0, Math.PI*2); ctx.fill();
+            }
+            // Enemy Combat Ability Attacks Vfx Render Stack Maps
+            else if (vfx.type === "nails") {
+                ctx.fillStyle = "#757575";
+                ctx.fillRect(vfx.x - 5, vfx.y - 5, 10, 10);
+                ctx.strokeStyle = "#ff00ff"; ctx.strokeRect(vfx.x - 12, vfx.y - 12, 24, 24);
+            }
+            else if (vfx.type === "divine_dog") {
+                ctx.fillStyle = "#ffffff"; ctx.font = "bold 14px monospace";
+                ctx.fillText("║█║▲║█║", vfx.x - 25, vfx.y);
+            }
+            else if (vfx.type === "divergent_punch") {
+                ctx.fillStyle = "rgba(255, 61, 0, 0.6)";
+                ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 40, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "projection") {
+                ctx.strokeStyle = "#eeff41"; ctx.lineWidth = 4;
+                ctx.strokeRect(vfx.x - 50, vfx.y - 50, 100, 100);
+            }
+            else if (vfx.type === "head_blast") {
+                ctx.fillStyle = "#ff9100"; ctx.fillRect(vfx.x, vfx.y - 15, enemy.x - vfx.x, 30);
+            }
+            else if (vfx.type === "ember_insect") {
+                ctx.fillStyle = "#ff3d00"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y - 20, 15, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(vfx.x - 30, vfx.y + 10, 12, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "rika_strike") {
+                ctx.fillStyle = "rgba(0,0,0,0.9)"; ctx.fillRect(vfx.x - 70, vfx.y - 70, 140, 140);
+                ctx.strokeStyle = "#ff1744"; ctx.strokeRect(vfx.x - 70, vfx.y - 70, 140, 140);
+            }
+            else if (vfx.type === "blue_lapse") {
+                ctx.fillStyle = "rgba(41, 121, 255, 0.7)";
+                ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 75, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "malevolent_shrine") {
+                ctx.fillStyle = "rgba(213, 0, 0, 0.3)"; ctx.fillRect(0, 0, 900, 500);
+                ctx.strokeStyle = "#000000"; ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.moveTo(vfx.x - 100, vfx.y); ctx.lineTo(vfx.x + 100, vfx.y); ctx.stroke();
+            }
+
+            ctx.restore();
+            if (!isPaused) vfx.life--;
+            if (vfx.life <= 0) activeVfx.splice(index, 1);
+        });
+
+        // Render Active Singular Purple Energy Node Systems
+        if (purpleVfx.active) {
+            if (purpleVfx.progress < 70) {
+                ctx.fillStyle = "#ff1744"; // Convergence Red element
+                ctx.beginPath(); ctx.arc(purpleVfx.redX + 50, player.y - 40, 15, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = "#2979ff"; // Convergence Blue element
+                ctx.beginPath(); ctx.arc(purpleVfx.blueX + 50, player.y - 40, 15, 0, Math.PI * 2); ctx.fill();
+            } else if (purpleVfx.progress < 180) {
+                let grad = ctx.createRadialGradient(player.x + 80, player.y - 40, 3, player.x + 80, player.y - 40, purpleVfx.size);
+                grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.3, '#d500f9'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(player.x + 80, player.y - 40, purpleVfx.size, 0, Math.PI * 2); ctx.fill();
+            } else {
+                let grad = ctx.createRadialGradient(purpleVfx.redX, player.y - 40, 4, purpleVfx.redX, player.y - 40, purpleVfx.size);
+                grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.4, '#aa00ff'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(purpleVfx.redX, player.y - 40, purpleVfx.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        // Render floating numbers array elements
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            ctx.fillStyle = p.color;
+            ctx.font = `bold ${p.size}px "Courier New"`;
+            ctx.fillText(p.text, p.x, p.y);
+            if (!isPaused) {
+                p.y -= 1.5;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        ctx.restore();
+        requestAnimationFrame(renderEngineCore);
+    }
+
+    // Initialize systems execution
+    initEnemy();
+    renderEngineCore();
+</script>
+</body>
+</html>

@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUJUTSU : OVERDRIVE</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #030305;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+            overflow: hidden;
+        }
+        h1 {
+            color: #4a148c;
+            text-shadow: 0 0 10px #d500f9, 0 0 20px #aa00ff;
+            margin: 5px 0;
+            letter-spacing: 5px;
+            font-size: 32px;
+        }
+        #game-container {
+            position: relative;
+            width: 960px;
+            height: 540px;
+            background: radial-gradient(circle at center, #110924 0%, #040208 100%);
+            border: 4px solid #aa00ff;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(170, 0, 255, 0.5);
+        }
+        canvas {
+            display: block;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .ui-box {
+            background: rgba(2, 1, 6, 0.95);
+            padding: 14px;
+            border: 2px solid #d500f9;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.5;
+            box-shadow: inset 0 0 12px rgba(213, 0, 249, 0.2);
+            min-width: 200px;
+        }
+        .bar-container {
+            width: 100%;
+            background-color: #1a0033;
+            height: 12px;
+            border: 1px solid #aa00ff;
+            margin-top: 5px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            width: 100%;
+            transition: width 0.1s ease-out;
+        }
+        #player-hp-fill { background-color: #00ffff; box-shadow: 0 0 8px #00ffff; }
+        #player-exp-fill { background-color: #e040fb; box-shadow: 0 0 8px #e040fb; }
+        #enemy-hp-fill { background-color: #ff1744; box-shadow: 0 0 8px #ff1744; }
+        
+        #controls {
+            margin-top: 15px;
+            width: 960px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        .btn {
+            background-color: #0b0518;
+            color: #f50057;
+            border: 2px solid #aa00ff;
+            padding: 15px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 12px;
+            text-align: center;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            border-radius: 4px;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #d500f9;
+            color: #fff;
+            box-shadow: 0 0 15px #d500f9;
+            transform: translateY(-2px);
+        }
+        .btn:disabled {
+            border-color: #2a0845;
+            color: #4a1c6d;
+            cursor: not-allowed;
+            background-color: #04010a;
+        }
+        #pause-menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 380px;
+            background: rgba(3, 1, 8, 0.98);
+            border: 4px double #d500f9;
+            padding: 25px;
+            text-align: center;
+            z-index: 10;
+        }
+        #pause-menu h2 {
+            color: #d500f9;
+            text-shadow: 0 0 10px #d500f9;
+            margin-top: 0;
+        }
+        .option-group {
+            margin: 25px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        select {
+            background: #11052c;
+            color: white;
+            border: 2px solid #aa00ff;
+            padding: 8px;
+            font-family: inherit;
+            border-radius: 4px;
+        }
+        #alert-banner {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 2, 25, 0.95);
+            border: 2px solid #ff0055;
+            padding: 12px 35px;
+            font-weight: bold;
+            display: none;
+            color: #fff;
+            text-shadow: 0 0 8px #ff0055;
+            box-shadow: 0 0 25px rgba(255,0,85,0.6);
+            border-radius: 4px;
+            z-index: 5;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>JUJUTSU : OVERDRIVE</h1>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+        
+        <div id="ui-overlay">
+            <div class="ui-box" id="player-stats">
+                <strong style="color: #00ffff;">PLAYER SORCERER</strong><br>
+                LVL: <span id="lbl-level">1</span>/10,000<br>
+                Yen: ¥<span id="lbl-currency">0</span><br>
+                HP: <span id="lbl-player-hp">600</span>/<span id="lbl-player-maxhp">600</span>
+                <div class="bar-container"><div id="player-hp-fill" class="bar-fill"></div></div>
+                EXP: <span id="lbl-exp">0</span>/<span id="lbl-maxexp">100</span>
+                <div class="bar-container"><div id="player-exp-fill" class="bar-fill"></div></div>
+            </div>
+            <div class="ui-box" id="quest-box" style="width: 320px; text-align: center; border-color: #aa00ff;">
+                <strong style="color: #d500f9;">CURRENT STAGE OBJECTIVE</strong><br>
+                <span id="lbl-quest-desc">Analyzing cursed energy channels...</span>
+            </div>
+            <div class="ui-box" id="enemy-stats" style="text-align: right;">
+                <strong style="color: #ff1744;">OPPONENT TARGET</strong><br>
+                Name: <span id="lbl-enemy-name">-</span><br>
+                Status: <span id="lbl-enemy-status">Normal</span><br>
+                HP: <span id="lbl-enemy-hp">0</span>/<span id="lbl-enemy-maxhp">0</span>
+                <div class="bar-container"><div id="enemy-hp-fill" class="bar-fill"></div></div>
+            </div>
+        </div>
+
+        <div id="alert-banner">ALERT SYSTEM</div>
+
+        <div id="pause-menu">
+            <h2>PAUSE MANAGEMENT</h2>
+            <div class="option-group">
+                <label for="color-select">Stick Figure Base Tint:</label>
+                <select id="color-select" onchange="changeColor(this.value)">
+                    <option value="default">Default Shaded Slate</option>
+                    <option value="white">Pure White Energy</option>
+                    <option value="crimson">Crimson Cursed Flow</option>
+                    <option value="void">Void Purple</option>
+                </select>
+            </div>
+            <button class="btn" style="width: 100%;" onclick="togglePause()">RESUME BATTLE</button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="useAttack()">Basic Strike</button>
+        <button class="btn" id="btn-clone" onclick="useClone()" disabled>Clone Manipulation<br>(Lvl 5)</button>
+        <button class="btn" id="btn-skill1" onclick="useSkill1()" disabled>Divergent Fist<br>(Lvl 50)</button>
+        <button class="btn" id="btn-skill2" onclick="useSkill2()" disabled>Black Flash<br>(Lvl 200)</button>
+        <button class="btn" id="btn-skill3" onclick="useSkill3()" disabled>Cleave & Dismantle<br>(Lvl 1000)</button>
+        <button class="btn" id="btn-skill4" onclick="useSkill4()" disabled>Granité Blast<br>(Lvl 3000)</button>
+        <button class="btn" id="btn-purple" onclick="usePurple()" disabled>Hollow Purple<br>(Lvl 5000)</button>
+        <button class="btn" style="border-color: #d500f9; color:#d500f9;" onclick="togglePause()">OPTIONS (PAUSE)</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    // Graphic Design Color Palettes from images.png
+    const PALETTE = {
+        sukunaHair: "#f582ae",
+        sukunaSkin: "#fbcbc9",
+        sukunaMarkings: "#2e2528",
+        sukunaShade: "#c7908f",
+        gojoHair: "#ffffff",
+        gojoSkin: "#ffe0bd",
+        gojoOutfit: "#120f24",
+        gojoBlindfold: "#050508",
+        yujiHair: "#fda2b6",
+        yujiHoodie: "#d32f2f",
+        megumiHair: "#0b0c10",
+        megumiOutfit: "#141a29",
+        nobaraHair: "#b85c1d",
+        nobaraOutfit: "#1f2538",
+        naoyaHair: "#d4af37",
+        naoyaOutfit: "#e5e9ec",
+        ryuHair: "#0a0a0c",
+        ryuCoat: "#1c1c24",
+        jogoVolcano: "#4e342e",
+        jogoLava: "#ff3d00",
+        yutaOutfit: "#ffffff",
+        yutaHair: "#1a1a24"
+    };
+
+    // System States
+    let player = {
+        level: 1, exp: 0, maxExp: 100, currency: 0,
+        colorMode: 'default', x: 240, y: 340, hp: 600, maxHp: 600,
+        clones: [], state: "idle", stateTimer: 0, isDefeated: false, respawnTimer: 0
+    };
+
+    const roster = [
+        { id: "nobara", name: "Nobara Kugisaki", maxHp: 180, baseExp: 150, baseCash: 120, atkType: "nails", atkDmg: 25, rate: 130 },
+        { id: "megumi", name: "Megumi Fushiguro", maxHp: 500, baseExp: 400, baseCash: 350, atkType: "divine_dog", atkDmg: 55, rate: 120 },
+        { id: "yuji", name: "Yuji Itadori", maxHp: 1500, baseExp: 1200, baseCash: 900, atkType: "divergent_punch", atkDmg: 110, rate: 100 },
+        { id: "naoya", name: "Naoya Zen'in", maxHp: 5000, baseExp: 4500, baseCash: 3000, atkType: "projection", atkDmg: 280, rate: 70 },
+        { id: "ryu", name: "Ryu Ishigori", maxHp: 18000, baseExp: 15000, baseCash: 8000, atkType: "head_blast", atkDmg: 750, rate: 150 },
+        { id: "jogo", name: "Jogo", maxHp: 45000, baseExp: 40000, baseCash: 25000, atkType: "ember_insect", atkDmg: 2000, rate: 110 },
+        { id: "yuta", name: "Yuta Okkotsu", maxHp: 200000, baseExp: 180000, baseCash: 95000, atkType: "rika_strike", atkDmg: 7000, rate: 95 },
+        { id: "gojo", name: "Satoru Gojo", maxHp: 1200000, baseExp: 950000, baseCash: 450000, atkType: "blue_lapse", atkDmg: 30000, rate: 85 },
+        { id: "sukuna", name: "Ryomen Sukuna", maxHp: 6000000, baseExp: 5000000, baseCash: 2000000, atkType: "malevolent_shrine", atkDmg: 120000, rate: 75 }
+    ];
+
+    let currentEnemyIndex = 0;
+    let enemy = null;
+    let isPaused = false;
+    let activeVfx = [];
+    let particles = [];
+    let cameraShake = { duration: 0, intensity: 0 };
+    let purpleVfx = { active: false, redX: 0, blueX: 0, progress: 0, size: 0 };
+
+    function initEnemy() {
+        let base = roster[currentEnemyIndex];
+        let loopMultiplier = Math.floor(player.level / 150) + 1;
+        enemy = {
+            id: base.id, name: base.name,
+            maxHp: base.maxHp * loopMultiplier, hp: base.maxHp * loopMultiplier,
+            baseExp: base.baseExp * loopMultiplier, baseCash: base.baseCash * loopMultiplier,
+            atkType: base.atkType, atkDmg: base.atkDmg * loopMultiplier, rate: base.rate,
+            atkTimer: 0, x: 680, y: 340, status: "Normal", stunTimer: 0, state: "idle", stateTimer: 0
+        };
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('lbl-level').innerText = player.level.toLocaleString();
+        document.getElementById('lbl-currency').innerText = player.currency.toLocaleString();
+        document.getElementById('lbl-exp').innerText = player.exp.toLocaleString();
+        document.getElementById('lbl-maxexp').innerText = player.maxExp.toLocaleString();
+        document.getElementById('lbl-player-hp').innerText = Math.max(0, player.hp).toLocaleString();
+        document.getElementById('lbl-player-maxhp').innerText = player.maxHp.toLocaleString();
+        
+        document.getElementById('player-hp-fill').style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+        document.getElementById('player-exp-fill').style.width = `${(player.exp / player.maxExp) * 100}%`;
+
+        document.getElementById('lbl-enemy-name').innerText = enemy.name;
+        document.getElementById('lbl-enemy-status').innerText = enemy.status;
+        document.getElementById('lbl-enemy-hp').innerText = Math.max(0, enemy.hp).toLocaleString();
+        document.getElementById('lbl-enemy-maxhp').innerText = enemy.maxHp.toLocaleString();
+        document.getElementById('enemy-hp-fill').style.width = `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`;
+
+        let qText = `Exorcise ${enemy.name}!`;
+        if (player.level < 5) qText = `Reach Level 5 to unlock [Clone Manipulation].`;
+        else if (player.level < 50) qText = `Reach Level 50 to unlock [Divergent Fist].`;
+        else if (player.level < 200) qText = `Reach Level 200 to unlock [Black Flash].`;
+        else if (player.level < 1000) qText = `Reach Level 1000 to unlock [Cleave & Dismantle].`;
+        else if (player.level < 3000) qText = `Reach Level 3000 to unlock [Granité Blast].`;
+        else if (player.level < 5000) qText = `Reach Level 5000 to unlock [Hollow Purple]!`;
+        else if (player.level >= 10000) qText = "THE HONORED ONE. Complete mastery attained.";
+        document.getElementById('lbl-quest-desc').innerText = qText;
+
+        document.getElementById('btn-clone').disabled = player.level < 5 || player.isDefeated;
+        setupSkillBtn('btn-skill1', 50);
+        setupSkillBtn('btn-skill2', 200);
+        setupSkillBtn('btn-skill3', 1000);
+        setupSkillBtn('btn-skill4', 3000);
+        document.getElementById('btn-purple').disabled = player.level < 5000 || player.isDefeated;
+    }
+
+    function setupSkillBtn(id, lvl) {
+        document.getElementById(id).disabled = player.level < lvl || player.isDefeated;
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        document.getElementById('pause-menu').style.display = isPaused ? 'block' : 'none';
+    }
+
+    function changeColor(mode) {
+        player.colorMode = mode;
+    }
+
+    function triggerAlert(text) {
+        let banner = document.getElementById('alert-banner');
+        banner.innerText = text;
+        banner.style.display = 'block';
+        setTimeout(() => banner.style.display = 'none', 1800);
+    }
+
+    function startShake(dur, intensity) {
+        cameraShake.duration = dur;
+        cameraShake.intensity = intensity;
+    }
+
+    // Engine Combat Architecture
+    function playerAttack(multiplier, type) {
+        if (enemy.hp <= 0 || player.isDefeated || isPaused) return;
+
+        player.state = "attack";
+        player.stateTimer = 14;
+
+        let baseDmg = Math.floor(player.level * 5) + 30; // Boosted attack base power
+        let finalDmg = Math.floor(baseDmg * multiplier);
+        enemy.hp -= finalDmg;
+
+        activeVfx.push({ x: enemy.x, y: enemy.y - 60, type: type, life: 18 });
+
+        let tColor = "#fff"; let tSize = 16;
+        if (type === "black_flash") { tColor = "#ff0055"; tSize = 28; startShake(20, 12); }
+        else if (type === "granite") { tColor = "#ffa726"; tSize = 24; startShake(15, 8); }
+        else if (type === "cleave") { tColor = "#b0bec5"; tSize = 20; }
+
+        particles.push({
+            x: enemy.x + (Math.random() * 40 - 20), y: enemy.y - 100,
+            text: `-${finalDmg}`, color: tColor, size: tSize, life: 40
+        });
+
+        if (enemy.hp <= 0) {
+            enemy.hp = 0;
+            enemyDefeated();
+        }
+        updateUI();
+    }
+
+    function enemyAttack() {
+        if (player.isDefeated || enemy.hp <= 0 || isPaused || enemy.status === "STUNNED") return;
+
+        enemy.state = "attack";
+        enemy.stateTimer = 16;
+
+        let dmg = Math.floor(enemy.atkDmg * (0.9 + Math.random() * 0.2));
+        player.hp -= dmg;
+
+        activeVfx.push({ x: player.x, y: player.y - 60, type: enemy.atkType, life: 20 });
+        startShake(12, 5);
+
+        particles.push({
+            x: player.x + (Math.random() * 40 - 20), y: player.y - 100,
+            text: `-${dmg}`, color: "#ff1744", size: 18, life: 45
+        });
+
+        if (player.hp <= 0) {
+            player.hp = 0;
+            player.isDefeated = true;
+            player.respawnTimer = 60; // Faster recovery time
+            triggerAlert("EXORCISED. GENERATING CURSED RECOVERY...");
+        }
+        updateUI();
+    }
+
+    function enemyDefeated() {
+        player.currency += enemy.baseCash;
+        player.exp += enemy.baseExp;
+        triggerAlert(`CURSE DESTROYED! +¥${enemy.baseCash} | EXP +${enemy.baseExp}`);
+
+        // EASIER ABILITY PROGRESSION LOGIC (Lowered scalability requirements per level)
+        while (player.exp >= player.maxExp && player.level < 10000) {
+            player.exp -= player.maxExp;
+            player.level++;
+            player.maxExp = Math.floor(player.maxExp * 1.02) + 15; // Slow growth means incredibly fast leveling!
+            player.maxHp = Math.floor(player.maxHp * 1.06) + 50;
+        }
+        if (player.level > 10000) player.level = 10000;
+        player.hp = player.maxHp;
+
+        currentEnemyIndex = (currentEnemyIndex + 1) % roster.length;
+        initEnemy();
+    }
+
+    // Skill Assignment Functions
+    function useAttack() { playerAttack(1, "strike"); }
+    function useClone() {
+        if (player.level < 5) return;
+        player.clones = [{ x: player.x - 50, y: player.y + 15, life: 18 }, { x: player.x - 30, y: player.y - 20, life: 18 }];
+        playerAttack(2.5, "clone");
+    }
+    function useSkill1() { if(player.level >= 50) playerAttack(5, "divergent"); }
+    function useSkill2() { if(player.level >= 200) playerAttack(15, "black_flash"); }
+    function useSkill3() { if(player.level >= 1000) playerAttack(38, "cleave"); }
+    function useSkill4() { if(player.level >= 3000) playerAttack(110, "granite"); }
+
+    function usePurple() {
+        if (player.level < 5000 || purpleVfx.active || enemy.hp <= 0 || player.isDefeated || isPaused) return;
+        purpleVfx.active = true;
+        purpleVfx.redX = player.x; purpleVfx.blueX = player.x; purpleVfx.progress = 0; purpleVfx.size = 12;
+        enemy.status = "STUNNED"; enemy.stunTimer = 300;
+        updateUI();
+    }
+
+    // HIGH GRAPHIC PERLER MATRIX RENDERING ENGINE (Matches images.png layout exactly)
+    function drawGridCharacter(cx, cy, characterId, customColor, flipped, frameState) {
+        let px = 3.5; // Scale mapping factor
+        let xOffset = frameState === "attack" ? 20 : 0;
+        
+        ctx.save();
+        if (flipped) {
+            ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
+        }
+
+        // Procedural Layer Rendering Interface
+        if (characterId === "player") {
+            let pColor = "#1e1e24";
+            if (customColor === "white") pColor = "#ffffff";
+            if (customColor === "crimson") pColor = "#990011";
+            if (customColor === "void") pColor = "#4a148c";
+
+            renderPixelCluster(cx - 20 + xOffset, cy - 100, px, [
+                "....XXXXXX....", "..XXXXXXXXXX..", ".XXXXXXXXXXXX.", "XXXXXXXXXXXXXX", "XXXXOOOOOOXXXX", "XXXXOOOOOOXXXX",
+                "....OOOOOO....", "....OOOOOO....", "....OOOOOO....", "....PPPPPP....", "..PPPPPPPPPP..", "..PPPPPPPPPP..",
+                "..PPPPPPPPPP..", "..PPPPPPPPPP..", "..PPPPPPPPPP..", "....PPPPPP....", "....PPPPPP....", "....MM..MM....",
+                "....MM..MM....", "....MM..MM....", "....MM..MM....", "....MM..MM....", "....MM..MM....", "...MMM..MMM..."
+            ], { 'X': "#4a3b32", 'O': "#ffcca3", 'P': pColor, 'M': "#111115" });
+        } 
+        else if (characterId === "sukuna") {
+            // Re-production perler grid of images.png
+            renderPixelCluster(cx - 30, cy - 110, px, [
+                "......XXXXXX......", "....XXXXXXXXXX....", "...XXXXXXXXXXXX...", "..XXXXXXXXXXXXXX..", "..XXXXXX..XXXXXX..",
+                "..XXXXX....XXXXX..", "...XXXX....XXXX...", "....XXOOOOOOXX....", "....XOOOOOOOOX....", "....XOOOMMMOOX....",
+                "....XOOOMMMOOX....", "....XOOOOOOOOX....", "....XOOOWWWOOX....", "....XOOOOOOOOX....", ".....XOOOOOOX.....",
+                "......SSSSSS......", "....SSSSSSSSSS....", "...SSSSSSSSSSSS...", "..SSSSSSSSSSSSSS..", ".SSSSSSSSSSSSSSSS.",
+                "SSSSSSSSSSSSSSSSSS", "SSSSSSSSSSSSSSSSSS", "SSSSSSSSSSSSSSSSSS", "SSSSSS......SSSSSS", "SSSSSS......SSSSSS",
+                "SSSSSS......SSSSSS", "SSSSSS......SSSSSS"
+            ], {
+                'X': PALETTE.sukunaHair, 'O': PALETTE.sukunaSkin, 'M': PALETTE.sukunaMarkings, 
+                'W': "#ff0033", 'S': "#e3d7ec"
+            });
+        }
+        else if (characterId === "gojo") {
+            renderPixelCluster(cx - 20, cy - 104, px, [
+                "....XXXXXX....", "..XXXXXXXXXX..", ".XXXXXXXXXXXX.", "XXXXXXXXXXXXXX", "XXXXBBBBBBXXXX", "XXXXOOOOOOXXXX",
+                "....OOOOOO....", "....PPPPPP....", "..PPPPPPPPPP..", "..PPPPPPPPPP..", "..PPPPPPPPPP..", "..PPPPPPPPPP.."
+            ], { 'X': PALETTE.gojoHair, 'O': PALETTE.gojoSkin, 'B': PALETTE.gojoBlindfold, 'P': PALETTE.gojoOutfit });
+        }
+        else if (characterId === "yuji") {
+            renderPixelCluster(cx - 20, cy - 100, px, [
+                "....XXXXXX....", "..XXXXXXXXXX..", ".XXXXXXXXXXXX.", "XXXXHHHHHHXXXX", "XXXXOOOOOOXXXX", "....OOOOOO....",
+                "....PPPPPP....", "..PPPPPPPPPP..", "..PPPPPPPPPP.."
+            ], { 'X': PALETTE.yujiHair, 'O': PALETTE.gojoSkin, 'H': PALETTE.yujiHoodie, 'P': "#1a2238" });
+        }
+        else if (characterId === "megumi") {
+            renderPixelCluster(cx - 22, cy - 104, px, [
+                "XX..XXXXXX..XX", "XXXXXXXXXXXXXX", ".XXXXXXXXXXXX.", "....OOOOOO....", "....OOOOOO....", "....PPPPPP....",
+                "..PPPPPPPPPP..", "..PPPPPPPPPP.."
+            ], { 'X': PALETTE.megumiHair, 'O': PALETTE.gojoSkin, 'P': PALETTE.megumiOutfit });
+        }
+        else if (characterId === "nobara") {
+            renderPixelCluster(cx - 20, cy - 100, px, [
+                "....XXXXXX....", "..XXXXXXXXXX..", "XXXXOOOOOOXXXX", "....OOOOOO....", "....PPPPPP....", "..PPPPPPPPPP..",
+                ".PPPPPPPPPPPP."
+            ], { 'X': PALETTE.nobaraHair, 'O': PALETTE.gojoSkin, 'P': PALETTE.nobaraOutfit });
+        }
+        else if (characterId === "naoya") {
+            renderPixelCluster(cx - 20, cy - 100, px, [
+                "....XXXXXX....", "..XXXXXXXXXX..", "XXXXOOOOOOXXXX", "....OOOOOO....", "....PPPPPP....", "..PPPPPPPPPP.."
+            ], { 'X': PALETTE.naoyaHair, 'O': PALETTE.gojoSkin, 'P': PALETTE.naoyaOutfit });
+        }
+        else if (characterId === "ryu") {
+            renderPixelCluster(cx - 20, cy - 115, px, [
+                "......XX......", ".....XXXX.....", "....XXXXXX....", "....XXXXXX....", "....OOOOOO....", "....OOOOOO....",
+                "....PPPPPP....", "..PPPPPPPPPP.."
+            ], { 'X': PALETTE.ryuHair, 'O': PALETTE.gojoSkin, 'P': PALETTE.ryuCoat });
+        }
+        else if (characterId === "jogo") {
+            renderPixelCluster(cx - 22, cy - 95, px, [
+                ".....VVVV.....", "....VLLLLV....", "....XOOOOX....", "....XOOOOX....", ".....XOOX.....", "....PPPPPP....",
+                "..PPPPPPPPPP.."
+            ], { 'V': PALETTE.jogoVolcano, 'L': PALETTE.jogoLava, 'X': "#b0bec5", 'O': "#cfd8dc", 'P': "#546e7a" });
+        }
+        else if (characterId === "yuta") {
+            renderPixelCluster(cx - 20, cy - 100, px, [
+                "....XXXXXX....", "..XXXXXXXXXX..", "XXXXOOOOOOXXXX", "....OOOOOO....", "....PPPPPP....", "..PPPPPPPPPP.."
+            ], { 'X': PALETTE.yutaHair, 'O': PALETTE.gojoSkin, 'P': PALETTE.yutaOutfit });
+        }
+
+        ctx.restore();
+    }
+
+    function renderPixelCluster(startX, startY, pixelScale, dataMatrix, colorMapping) {
+        for (let row = 0; row < dataMatrix.length; row++) {
+            let line = dataMatrix[row];
+            for (let col = 0; col < line.length; col++) {
+                let char = line[col];
+                if (char !== '.' && colorMapping[char]) {
+                    ctx.fillStyle = colorMapping[char];
+                    ctx.fillRect(Math.floor(startX + (col * pixelScale)), Math.floor(startY + (row * pixelScale)), Math.ceil(pixelScale), Math.ceil(pixelScale));
+                    
+                    // Render individual bead divider circles matching images.png perfectly
+                    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(Math.floor(startX + (col * pixelScale)), Math.floor(startY + (row * pixelScale)), Math.ceil(pixelScale), Math.ceil(pixelScale));
+                }
+            }
+        }
+    }
+
+    // Engine Main Render Loop Execution Engine
+    function cycleEngineCore() {
+        let shakeX = 0; let shakeY = 0;
+        if (cameraShake.duration > 0) {
+            shakeX = (Math.random() * 2 - 1) * cameraShake.intensity;
+            shakeY = (Math.random() * 2 - 1) * cameraShake.intensity;
+            if (!isPaused) cameraShake.duration--;
+        }
+
+        ctx.save();
+        ctx.translate(shakeX, shakeY);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Ground Floor Environment Setup
+        ctx.fillStyle = "#090514"; ctx.fillRect(0, 390, 960, 150);
+        ctx.strokeStyle = "#3c1060"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, 390); ctx.lineTo(960, 390); ctx.stroke();
+
+        for (let j = -100; j < 1200; j += 80) {
+            ctx.beginPath(); ctx.moveTo(j, 390); ctx.lineTo(j - 160, 540); ctx.stroke();
+        }
+
+        if (!isPaused) {
+            if (player.isDefeated) {
+                player.respawnTimer--;
+                if (player.respawnTimer <= 0) {
+                    player.isDefeated = false;
+                    player.hp = Math.floor(player.maxHp * 0.5);
+                    updateUI();
+                }
+            }
+
+            if (player.stateTimer > 0) { player.stateTimer--; if (player.stateTimer <= 0) player.state = "idle"; }
+            if (enemy.stateTimer > 0) { enemy.stateTimer--; if (enemy.stateTimer <= 0) enemy.state = "idle"; }
+
+            if (enemy.stunTimer > 0) {
+                enemy.stunTimer--;
+                if (enemy.stunTimer <= 0) { enemy.status = "Normal"; updateUI(); }
+            } else {
+                enemy.atkTimer++;
+                if (enemy.atkTimer >= enemy.rate) { enemy.atkTimer = 0; enemyAttack(); }
+            }
+
+            if (purpleVfx.active) {
+                purpleVfx.progress += 3.5;
+                if (purpleVfx.progress < 75) {
+                    purpleVfx.redX = player.x + purpleVfx.progress;
+                    purpleVfx.blueX = player.x + 150 - purpleVfx.progress;
+                } else if (purpleVfx.progress < 190) {
+                    purpleVfx.size = Math.min(75, purpleVfx.size + 1.6);
+                } else {
+                    purpleVfx.redX += 18;
+                    if (purpleVfx.redX >= enemy.x) {
+                        purpleVfx.active = false;
+                        playerAttack(550, "purple_impact");
+                    }
+                }
+            }
+        }
+
+        // Render Entity Layers
+        if (!player.isDefeated) {
+            drawGridCharacter(player.x, player.y, "player", player.colorMode, false, player.state);
+        }
+
+        player.clones.forEach((clone) => {
+            if (clone.life > 0) {
+                ctx.globalAlpha = 0.45;
+                drawGridCharacter(clone.x, clone.y, "player", "void", false, "attack");
+                ctx.globalAlpha = 1.0;
+                if (!isPaused) clone.life--;
+            }
+        });
+
+        if (enemy && enemy.hp > 0) {
+            if (enemy.stunTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0) {
+                ctx.globalAlpha = 0.4;
+                drawGridCharacter(enemy.x, enemy.y, enemy.id, null, true, enemy.state);
+                ctx.globalAlpha = 1.0;
+            } else {
+                drawGridCharacter(enemy.x, enemy.y, enemy.id, null, true, enemy.state);
+            }
+        }
+
+        // Render Particle & Overlay VFX Engines
+        activeVfx.forEach((vfx, i) => {
+            ctx.save();
+            if (vfx.type === "strike") {
+                ctx.strokeStyle = "#00ffff"; ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.moveTo(vfx.x - 40, vfx.y - 40); ctx.lineTo(vfx.x + 40, vfx.y + 40); ctx.stroke();
+            } 
+            else if (vfx.type === "divergent") {
+                ctx.fillStyle = "rgba(0,191,255,0.4)"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 60, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "rgba(255,0,64,0.7)"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 30, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "black_flash") {
+                ctx.fillStyle = "#000000"; ctx.fillRect(vfx.x - 70, vfx.y - 70, 140, 140);
+                ctx.strokeStyle = "#f50057"; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(vfx.x - 50, vfx.y - 50); ctx.lineTo(vfx.x + 40, vfx.y + 40); ctx.stroke();
+            }
+            else if (vfx.type === "cleave") {
+                ctx.strokeStyle = "#cfd8dc"; ctx.lineWidth = 4;
+                for (let r = 0; r < 5; r++) {
+                    ctx.beginPath(); ctx.moveTo(vfx.x - 60, vfx.y - 50 + (r * 22)); ctx.lineTo(vfx.x + 60, vfx.y - 30 + (r * 22)); ctx.stroke();
+                }
+            }
+            else if (vfx.type === "granite") {
+                ctx.fillStyle = "#ffa726"; ctx.fillRect(player.x, vfx.y - 20, vfx.x - player.x, 40);
+            }
+            else if (vfx.type === "purple_impact") {
+                ctx.fillStyle = "rgba(106,27,154,0.85)"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 130, 0, Math.PI*2); ctx.fill();
+            }
+            // Enemy Attacks Overlay Rendering Logic Map
+            else if (vfx.type === "nails") {
+                ctx.fillStyle = "#ff00ff"; ctx.fillRect(vfx.x - 10, vfx.y - 10, 20, 20);
+            }
+            else if (vfx.type === "divine_dog") {
+                ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5; ctx.strokeRect(vfx.x - 40, vfx.y - 40, 80, 80);
+            }
+            else if (vfx.type === "divergent_punch") {
+                ctx.fillStyle = "#ff3d00"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 50, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "projection") {
+                ctx.fillStyle = "rgba(238,255,65,0.4)"; ctx.fillRect(vfx.x - 60, vfx.y - 60, 120, 120);
+            }
+            else if (vfx.type === "head_blast") {
+                ctx.fillStyle = "#ff9100"; ctx.fillRect(vfx.x, vfx.y - 20, enemy.x - vfx.x, 40);
+            }
+            else if (vfx.type === "ember_insect") {
+                ctx.fillStyle = "#b85c1d"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 35, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "rika_strike") {
+                ctx.fillStyle = "#111115"; ctx.fillRect(vfx.x - 80, vfx.y - 80, 160, 160);
+            }
+            else if (vfx.type === "blue_lapse") {
+                ctx.fillStyle = "rgba(41,121,255,0.8)"; ctx.beginPath(); ctx.arc(vfx.x, vfx.y, 80, 0, Math.PI*2); ctx.fill();
+            }
+            else if (vfx.type === "malevolent_shrine") {
+                ctx.fillStyle = "rgba(183,28,28,0.4)"; ctx.fillRect(0,0,960,540);
+            }
+            ctx.restore();
+            if (!isPaused) vfx.life--;
+            if (vfx.life <= 0) activeVfx.splice(i, 1);
+        });
+
+        // Live Render Hollow Purple Accumulations Engine
+        if (purpleVfx.active) {
+            if (purpleVfx.progress < 75) {
+                ctx.fillStyle = "#ff1744"; ctx.beginPath(); ctx.arc(purpleVfx.redX + 60, player.y - 60, 18, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = "#2979ff"; ctx.beginPath(); ctx.arc(purpleVfx.blueX + 60, player.y - 60, 18, 0, Math.PI * 2); ctx.fill();
+            } else if (purpleVfx.progress < 190) {
+                let purpleGrad = ctx.createRadialGradient(player.x + 90, player.y - 60, 5, player.x + 90, player.y - 60, purpleVfx.size);
+                purpleGrad.addColorStop(0, '#fff'); purpleGrad.addColorStop(0.3, '#d500f9'); purpleGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = purpleGrad; ctx.beginPath(); ctx.arc(player.x + 90, player.y - 60, purpleVfx.size, 0, Math.PI * 2); ctx.fill();
+            } else {
+                let purpleGrad = ctx.createRadialGradient(purpleVfx.redX, player.y - 60, 5, purpleVfx.redX, player.y - 60, purpleVfx.size);
+                purpleGrad.addColorStop(0, '#fff'); purpleGrad.addColorStop(0.3, '#aa00ff'); purpleGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = purpleGrad; ctx.beginPath(); ctx.arc(purpleVfx.redX, player.y - 60, purpleVfx.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        // Damage Text Particle Arrays Elements Processing
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            ctx.fillStyle = p.color; ctx.font = `bold ${p.size}px "Courier New"`;
+            ctx.fillText(p.text, p.x, p.y);
+            if (!isPaused) {
+                p.y -= 1.4; p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        ctx.restore();
+        requestAnimationFrame(cycleEngineCore);
+    }
+
+    initEnemy();
+    cycleEngineCore();
+</script>
+</body>
+</html>
